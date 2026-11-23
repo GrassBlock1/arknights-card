@@ -1,8 +1,8 @@
 import { useKV } from "nitro/kv";
 // The managed API selects its backend through the target runtime's export conditions.
 import { render, renderSvg, type FontLoader } from "takumi-js";
-import type { CardProfile } from "./card-data";
-import { cardSizes, renderCardMarkup, safeImageUrl, type CardStyle } from "./render-html";
+import type { CardProfile } from "../../shared/card.ts";
+import { cardSizes, renderCardMarkup, safeImageUrl, type CardStyle } from "../../shared/card.ts";
 
 export type CardFormat = "png" | "webp" | "svg";
 let fontsPromise: Promise<FontLoader[]> | undefined;
@@ -83,7 +83,14 @@ export async function loadCardImages(profile: CardProfile) {
 export async function renderImage(profile: CardProfile, style: CardStyle = "large", format: CardFormat = "png"): Promise<Uint8Array<ArrayBuffer>> {
   const [fonts, images] = await Promise.all([getFonts(), loadCardImages(profile)]);
   const available = new Set(images.map((image) => image.src));
-  const markup = renderCardMarkup(profile, style, (url) => available.has(url) ? url : "");
+  const palette = {
+    accent: "#d4e954",
+    background: "#0e1621",
+    text: "#eaf0f6",
+    panel: "#17212e",
+    panelBorder: "#2b3847",
+  };
+  const markup = renderCardMarkup(profile, style, (url) => available.has(url) ? url : "", palette);
   const options = {
     ...cardSizes[style],
     images,

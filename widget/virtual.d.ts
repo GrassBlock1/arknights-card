@@ -1,0 +1,4 @@
+declare module 'virtual:card-widget-source' {
+  const source: string;
+  export default source;
+}

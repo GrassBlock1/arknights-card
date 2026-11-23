@@ -16,10 +16,18 @@
   const snippets = $derived.by(() => {
     const image = imageUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
     const embed = embedUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+    const widgetUrl = new URL('/card-widget.js', location.origin).href;
+    const cardInput = Object.fromEntries(new URLSearchParams(readyQuery));
+    const widgetModule = ['<script type="module" src="', widgetUrl, '"></scr' + 'ipt>'].join('');
+    const shareId = String(cardInput.id ?? '');
+    const cardElement = `<arknights-card share-id="${shareId}" layout="${style}"></arknights-card>`;
+    const mountScript = ['<div id="card"></div><scr' + 'ipt type="module">import { mountCard } from "', widgetUrl, '"; mountCard(document.querySelector("#card"), { input: ', JSON.stringify(cardInput), ' });</scr' + 'ipt>'].join('');
     return [
       { key: 'url', label: '图片直链', code: imageUrl },
       { key: 'img', label: 'HTML 图片', code: `<img src="${image}" alt="明日方舟博士名片" width="${size.width}" height="${size.height}" style="max-width:100%;height:auto">` },
       { key: 'iframe', label: 'iframe 嵌入', code: `<iframe src="${embed}" title="明日方舟博士名片" width="${size.width}" height="${size.height}" style="border:0;max-width:100%;aspect-ratio:${size.width}/${size.height}" loading="lazy"></iframe>` },
+      { key: 'widget', label: 'JS 组件', code: `${widgetModule}${cardElement}` },
+      { key: 'widget-mount', label: 'JS 容器挂载', code: mountScript },
       { key: 'markdown', label: 'Markdown', code: `![明日方舟博士名片](${imageUrl})` },
     ];
   });
@@ -71,7 +79,7 @@
       {#if readyQuery && view === 'embed'}
         <iframe title="明日方舟博士名片网页预览" src={embedUrl} sandbox="allow-scripts"></iframe>
       {:else if blobUrl}
-        <img src={blobUrl} alt="当前配置生成的明日方舟博士名片" class:stale={!readyQuery} />
+        <img src={blobUrl} alt="当前配置生成的明日方舟名片" class:stale={!readyQuery} />
       {/if}
       {#if loading}<span class="render-badge" role="status" aria-live="polite">正在生成…</span>{/if}
     </div>

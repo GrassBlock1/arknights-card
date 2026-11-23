@@ -3,15 +3,8 @@ import { getSharedProfile } from './store';
 import { getGameData, operatorArt, skillArt } from './gamedata';
 import { gameAvatar } from './avatar';
 
-export type CardProfile = {
-  name: string; uid: string; level: number | null; server: string; signature: string;
-  registered: string; days: number | null; avatar: string;
-  secretary: { id: string; name: string; portrait: string; avatar: string };
-  stats: { operators: number | null; skins: number | null; furniture: number | null; modules: number | null; moduleStage3: number | null; moduleOperators: number | null };
-  factions: { name: string; owned: number; total: number }[];
-  assists: { id: string; name: string; avatar: string; level: number | null; elite: number | null; skillName: string; skillIcon: string; mastery: number | null; module: string }[];
-  updatedAt: string;
-};
+import type { CardProfile } from '../../shared/card.ts';
+export type { CardProfile } from '../../shared/card.ts';
 type Row = Record<string, any>;
 const row = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 const list = (value: unknown): Row[] => Array.isArray(value) ? value.map(row) : [];
