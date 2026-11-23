@@ -1,27 +1,24 @@
 import { useKV } from "nitro/kv";
-import { Renderer } from "takumi-js/node";
+// The managed API selects its backend through the target runtime's export conditions.
+import { render, renderSvg, type FontLoader } from "takumi-js";
 import type { CardProfile } from "./card-data";
 import { cardSizes, renderCardMarkup, safeImageUrl, type CardStyle } from "./render-html";
 
 export type CardFormat = "png" | "webp" | "svg";
-let rendererPromise: Promise<Renderer> | undefined;
+let fontsPromise: Promise<FontLoader[]> | undefined;
 
-async function getRenderer(): Promise<Renderer> {
-  if (!rendererPromise) {
-    rendererPromise = (async () => {
-      const renderer = new Renderer();
-      const font = await useKV("assets:server").getItemRaw<Uint8Array>("fonts/NotoSansSC.ttf");
-      if (!font) throw new Error("Bundled Noto Sans SC font is missing");
-      const data = Buffer.from(font.buffer, font.byteOffset, font.byteLength);
-      await renderer.registerFont({ name: "Noto Sans SC", data, weight: 400, style: "normal" });
-      await renderer.registerFont({ name: "Noto Sans SC", data, weight: 700, style: "normal" });
-      return renderer;
-    })().catch((error) => {
-      rendererPromise = undefined;
-      throw error;
-    });
-  }
-  return rendererPromise;
+function getFonts(): Promise<FontLoader[]> {
+  return fontsPromise ??= (async (): Promise<FontLoader[]> => {
+    const font = await useKV("assets:server").getItemRaw<Uint8Array>("fonts/NotoSansSC.ttf");
+    if (!font) throw new Error("Bundled Noto Sans SC font is missing");
+    return [
+      { name: "Noto Sans SC", data: font, weight: 400, style: "normal" },
+      { name: "Noto Sans SC", data: font, weight: 700, style: "normal" },
+    ];
+  })().catch((error) => {
+    fontsPromise = undefined;
+    throw error;
+  });
 }
 
 async function fetchCardImage(src: string): Promise<{ src: string; data: Uint8Array; mime: string } | null> {
@@ -84,23 +81,22 @@ export async function loadCardImages(profile: CardProfile) {
 }
 
 export async function renderImage(profile: CardProfile, style: CardStyle = "large", format: CardFormat = "png"): Promise<Uint8Array<ArrayBuffer>> {
-  const [renderer, images] = await Promise.all([getRenderer(), loadCardImages(profile)]);
+  const [fonts, images] = await Promise.all([getFonts(), loadCardImages(profile)]);
   const available = new Set(images.map((image) => image.src));
   const markup = renderCardMarkup(profile, style, (url) => available.has(url) ? url : "");
-  if (format === "svg") {
-    const svg = await renderer.renderSvg(markup, {
-      ...cardSizes[style],
-      images,
-      fontFamilies: ["Noto Sans SC"],
-      lang: "zh-CN",
-    });
-    return new TextEncoder().encode(svg);
-  }
-  return renderer.render(markup, {
+  const options = {
     ...cardSizes[style],
-    format,
     images,
+    fonts,
     fontFamilies: ["Noto Sans SC"],
     lang: "zh-CN",
-  });
+    // Keep emoji in the font pipeline instead of downloading additional artwork.
+    emoji: "from-font" as const,
+  };
+  if (format === "svg") {
+    return new TextEncoder().encode(await renderSvg(markup, options));
+  }
+  return format === "png"
+    ? render(markup, { ...options, format: "png" })
+    : render(markup, { ...options, format: "webp" });
 }
