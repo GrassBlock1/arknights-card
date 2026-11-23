@@ -22,6 +22,9 @@ async function key() {
       if (value.length !== 32) throw new Error('CARD_ENCRYPTION_KEY must encode 32 bytes');
       return value;
     }
+    if (globalThis.navigator?.userAgent === 'Cloudflare-Workers') {
+      throw new HTTPError('CARD_ENCRYPTION_KEY must be configured as a Cloudflare Workers secret (base64-encoded 32 bytes)', { status: 503 });
+    }
     const directory = resolve(process.env.CARD_DATA_DIR || '.data/private');
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const path = resolve(directory, 'encryption.key');
@@ -32,7 +35,7 @@ async function key() {
 }
 async function seal(value: unknown) {
   const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', await key(), iv);
-  const body = Buffer.concat([cipher.update(JSON.stringify(value)), cipher.final()]);
+  const body = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64');
 }
 async function unseal<T>(value: string): Promise<T> {
