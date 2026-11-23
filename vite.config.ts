@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
-import { nitro } from "nitro/vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { cardWidget } from "./widget/vite-plugin.ts";
+import { cloudflare } from "@cloudflare/vite-plugin";
 
 export default defineConfig({
-  plugins: [cardWidget(), nitro(), svelte()],
+  plugins: [cardWidget(), svelte(), cloudflare()],
 });

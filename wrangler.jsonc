@@ -1,0 +1,17 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "arknights-card",
+	"compatibility_date": "2026-11-19",
+	"observability": {
+		"enabled": true
+	},
+	"assets": {
+		"not_found_handling": "single-page-application"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "CARD_DATA",
+			"id": "abcdefg" // change to your own
+		}
+	]
+}
