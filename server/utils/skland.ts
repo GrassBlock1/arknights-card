@@ -1,17 +1,60 @@
 import { createHash, createHmac } from 'node:crypto';
 import { HTTPError } from 'nitro';
+import type * as Undici from 'undici';
+import type { ProxyAgent } from 'undici';
 
 const HG = 'https://as.hypergryph.com';
 const SK = 'https://zonai.skland.com';
 type Payload = Record<string, any>;
 
+let nodeProxy: { url: string; dispatcher: ProxyAgent } | undefined;
+// Not inlined: worker bundles must not pull in undici, which needs Node.js sockets.
+const UNDICI_MODULE = 'undici';
+
+function relayTarget(url: string): URL | undefined {
+  const relay = process.env.CARD_SKLAND_RELAY_URL?.trim();
+  if (!relay) return undefined;
+  let target: URL;
+  try { target = new URL(relay); } catch { throw new HTTPError('CARD_SKLAND_RELAY_URL 配置无效', { status: 503 }); }
+  const loopback = target.hostname === 'localhost' || target.hostname === '127.0.0.1' || target.hostname === '[::1]';
+  if (target.protocol !== 'https:' && !(target.protocol === 'http:' && loopback)) throw new HTTPError('CARD_SKLAND_RELAY_URL 配置无效', { status: 503 });
+  target.searchParams.set('url', url);
+  return target;
+}
+
+function proxyEndpoint(): string | undefined {
+  const proxy = process.env.CARD_SKLAND_PROXY?.trim();
+  if (!proxy) return undefined;
+  let url: URL;
+  try { url = new URL(proxy); } catch { throw new HTTPError('CARD_SKLAND_PROXY 配置无效', { status: 503 }); }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new HTTPError('CARD_SKLAND_PROXY 配置无效', { status: 503 });
+  return url.href;
+}
+
+export async function sklandFetch(url: string, options: RequestInit): Promise<Response> {
+  if (globalThis.navigator?.userAgent === 'Cloudflare-Workers') {
+    const target = relayTarget(url);
+    return target ? fetch(target, options) : fetch(url, options);
+  }
+  const proxy = proxyEndpoint();
+  if (!proxy) return fetch(url, options);
+  const { ProxyAgent, fetch: proxyFetch } = await import(UNDICI_MODULE) as typeof Undici;
+  if (nodeProxy?.url !== proxy) {
+    const previous = nodeProxy;
+    nodeProxy = { url: proxy, dispatcher: new ProxyAgent(proxy) };
+    if (previous) void previous.dispatcher.close().catch(() => {});
+  }
+  return proxyFetch(url, { ...options, dispatcher: nodeProxy.dispatcher } as unknown as Parameters<typeof proxyFetch>[1]) as unknown as Response;
+}
+
 async function request(url: string, options: RequestInit = {}): Promise<Payload> {
   try {
-    const response = await fetch(url, { ...options, redirect: 'error', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json', ...options.headers } });
+    const response = await sklandFetch(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json', ...options.headers } });
     const data = await response.json() as Payload;
     if (!response.ok) throw new Error('upstream');
     return data;
-  } catch {
+  } catch (error) {
+    if (error instanceof HTTPError) throw error;
     throw new HTTPError('森空岛服务暂时不可用，请稍后重试', { status: 502 });
   }
 }
